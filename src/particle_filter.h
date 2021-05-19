@@ -24,6 +24,11 @@ struct Particle {
   std::vector<double> sense_y;
 };
 
+struct Associate {
+  std::vector<int> associations;
+  std::vector<double> sense_x;
+  std::vector<double> sense_y;
+};
 
 class ParticleFilter {  
  public:
@@ -63,7 +68,7 @@ class ParticleFilter {
    * @param predicted Vector of predicted landmark observations
    * @param observations Vector of landmark observations
    */
-  vector<int> dataAssociation(std::vector<LandmarkObs> predicted, 
+  Associate dataAssociation(std::vector<LandmarkObs> predicted, 
                        std::vector<LandmarkObs>& observations);
   
   /**

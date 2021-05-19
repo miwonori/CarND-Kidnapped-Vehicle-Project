@@ -45,6 +45,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
     pt.theta = dist_theta(gen);
     pt.weight = 1;
     particles.push_back(pt);
+    weights.push_back(pt.weight);
   }
   is_initialized = true;
 }
@@ -79,8 +80,8 @@ void ParticleFilter::prediction(double delta_t, double std_pos[],
 
 // void ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
 //                                      vector<LandmarkObs>& observations) {
-vector<int> ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
-                                     vector<LandmarkObs>& observations) {                                    
+Associate ParticleFilter::dataAssociation(vector<LandmarkObs> predicted, 
+                                     vector<LandmarkObs>& observations) {
   /**
    * TODO: Find the predicted measurement that is closest to each 
    *   observed measurement and assign the observed measurement to this 
@@ -89,7 +90,10 @@ vector<int> ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
    *   probably find it useful to implement this method and use it as a helper 
    *   during the updateWeights phase.
    */
-  vector<int> Indx;
+  Associate associate;
+  int tmp_associate;
+  double tmp_x;
+  double tmp_y;
   
   for (int i = 0; i < observations.size(); i++){
     double dist_max = 100;
@@ -101,12 +105,18 @@ vector<int> ParticleFilter::dataAssociation(vector<LandmarkObs> predicted,
       double y2 = predicted[k].y;
       double L = dist(x1,y1,x2,y2);
       if (L<dist_max){
-        dist_max = L ;
-        tmpIndx = predicted[k].id;
+        dist_max = L;
+        tmp_associate = predicted[k].id;
+        tmp_x = predicted[k].x;
+        tmp_y = predicted[k].y;
       }
     }
-    Indx.push_back(tmpIndx);
+    associate.associations.push_back(tmp_associate);
+    associate.sense_x.push_back(tmp_x);
+    associate.sense_y.push_back(tmp_y);
   }
+  return associate;
+
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -132,6 +142,8 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
     double y_0 = particles[i].y;
     double sin_theta = sin(particles[i].theta);
     double cos_theta = cos(particles[i].theta);
+    Associate associate;
+    double prob = 1;
 
     vector<LandmarkObs> predict_obs;
     for (int j=0; j <map_landmarks.landmark_list.size();j++){
@@ -159,9 +171,27 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
       // particles[i].sense_x.push_back(x_m);
       // particles[i].sense_y.push_back(y_m);
     }
-    dataAssociation(predict_obs, meas_obs);
+    
+    associate = dataAssociation(predict_obs, meas_obs);
+    SetAssociations(particles[i], associate.associations, 
+                    associate.sense_x, associate.sense_y );
+    std::cout << particles[i].associations.size() << std::endl;
+
+    for (int m = 0; m < meas_obs.size();m++){
+      double mu_x = particles[i].sense_x[m];
+      double mu_y = particles[i].sense_y[m];
+      double tmp1 = 1/(2*M_PI*std_landmark[0]*std_landmark[1]);
+      double tmp2 = pow((meas_obs[m].x-mu_x),2)/(2*std_landmark[0]*std_landmark[0]);
+      double tmp3 = pow((meas_obs[m].y-mu_y),2)/(2*std_landmark[1]*std_landmark[1]);
+      double tmp4 = exp(-(tmp2 + tmp3));
+      prob *= tmp1*tmp4;
+    }
+    particles[i].weight = prob;
+    weights[i] = particles[i].weight;
   }
+  
   std::cout << "weightUpdate End line" << std::endl;
+  
 }
 
 void ParticleFilter::resample() {
@@ -171,6 +201,25 @@ void ParticleFilter::resample() {
    * NOTE: You may find std::discrete_distribution helpful here.
    *   http://en.cppreference.com/w/cpp/numeric/random/discrete_distribution
    */
+  std::random_device rd;
+  std::default_random_engine gen(rd());
+  std::uniform_real_distribution<float> die(0,1);
+  vector<Particle> tmp_particles ;
+  
+  double beta = 0;
+  int index = int(die(gen)*num_particles); 
+  double max_w = *max_element(weights.begin(), weights.end());
+
+  for (int i = 0; i <num_particles; i++){
+    beta += die(gen)*2*max_w;
+    while (weights[index] < beta){
+      beta = beta - weights[index];
+      index = (index + 1) % num_particles;
+    }
+    tmp_particles.push_back(particles[index]);
+  }
+  particles = tmp_particles;
+  std::cout << "resampled" << std::endl;
 
 }
 
